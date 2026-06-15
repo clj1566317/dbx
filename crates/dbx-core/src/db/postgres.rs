@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime};
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod, Runtime};
+use deadpool_postgres::{ManagerConfig, Pool, PoolError, RecyclingMethod, Runtime};
 use futures::{SinkExt, StreamExt};
 use percent_encoding::percent_decode_str;
 use rust_decimal::Decimal;
@@ -679,6 +679,43 @@ fn pg_error_to_string(err: tokio_postgres::Error) -> String {
     err.as_db_error().map(ToString::to_string).unwrap_or_else(|| err.to_string())
 }
 
+fn pg_db_error_to_string(err: &tokio_postgres::error::DbError) -> String {
+    format!("{err} (SQLSTATE {})", err.code().code())
+}
+
+fn pg_error_from_sources(err: &(dyn std::error::Error + 'static)) -> Option<String> {
+    let mut current = Some(err);
+    while let Some(source) = current {
+        if let Some(pg_error) = source.downcast_ref::<tokio_postgres::Error>() {
+            if let Some(db_error) = pg_error.as_db_error() {
+                return Some(pg_db_error_to_string(db_error));
+            }
+        }
+        if let Some(db_error) = source.downcast_ref::<tokio_postgres::error::DbError>() {
+            return Some(pg_db_error_to_string(db_error));
+        }
+        current = source.source();
+    }
+    None
+}
+
+fn error_with_sources_to_string(err: &(dyn std::error::Error + 'static)) -> String {
+    let mut messages = vec![err.to_string()];
+    let mut current = err.source();
+    while let Some(source) = current {
+        let message = source.to_string();
+        if !messages.iter().any(|existing| existing == &message) {
+            messages.push(message);
+        }
+        current = source.source();
+    }
+    messages.join(": ")
+}
+
+fn pg_pool_error_to_string(err: PoolError) -> String {
+    pg_error_from_sources(&err).unwrap_or_else(|| error_with_sources_to_string(&err))
+}
+
 fn should_retry_postgres_text_query(err: &tokio_postgres::Error) -> bool {
     let message = err.as_db_error().map(ToString::to_string).unwrap_or_else(|| err.to_string()).to_ascii_lowercase();
     message.contains("no binary output function")
@@ -845,7 +882,8 @@ pub async fn connect(url: &str, fallback_timeout: Duration) -> Result<Pool, Stri
 
         // Verify connectivity and set timezone. Only set timezone if the user
         // hasn't already specified one via connection parameters (e.g. options=-c timezone=...)
-        let client = pool.get().await.map_err(|e| format!("PostgreSQL connection failed: {e}"))?;
+        let client =
+            pool.get().await.map_err(|e| format!("PostgreSQL connection failed: {}", pg_pool_error_to_string(e)))?;
         if !pg_url_has_timezone_setting(url) {
             client
                 .execute(&format!("SET timezone = '{}'", tz.replace('\'', "''")), &[])
