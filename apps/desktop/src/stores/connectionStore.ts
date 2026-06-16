@@ -305,6 +305,7 @@ export const useConnectionStore = defineStore("connection", () => {
       connect_timeout_secs: config.connect_timeout_secs || 5,
       query_timeout_secs: config.query_timeout_secs ?? 30,
       idle_timeout_secs: config.idle_timeout_secs ?? 60,
+      keepalive_interval_secs: config.keepalive_interval_secs ?? 0,
     };
   }
 
