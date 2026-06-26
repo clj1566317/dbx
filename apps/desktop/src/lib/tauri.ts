@@ -569,6 +569,10 @@ export async function getColumns(connectionId: string, database: string, schema:
   return invoke("get_columns", { connectionId, database, schema, table });
 }
 
+export async function listDataTypes(connectionId: string, database: string): Promise<string[]> {
+  return invoke("list_data_types", { connectionId, database });
+}
+
 export async function executeQuery(
   connectionId: string,
   database: string,

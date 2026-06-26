@@ -627,6 +627,56 @@ async fn list_schema_infos_once(
     Ok(schemas.into_iter().map(|name| db::SchemaInfo { name, comment: None }).collect())
 }
 
+pub async fn list_data_types_core(
+    state: &AppState,
+    connection_id: &str,
+    database: &str,
+) -> Result<Vec<String>, String> {
+    retry_metadata_connection(state, connection_id, Some(database), || async {
+        let pool_key = state.get_or_create_pool(connection_id, Some(database)).await?;
+        let db_config = connection_config(state, connection_id).await;
+        let connections = state.connections.read().await;
+        if let Some(PoolKind::ExternalDriver { config, session, .. }) = connections.get(&pool_key) {
+            let config = config.clone();
+            let session = session.clone();
+            drop(connections);
+            return session
+                .invoke::<Vec<String>>(
+                    "listDataTypes",
+                    serde_json::json!({ "connection": config.as_ref(), "database": database }),
+                )
+                .await
+                .map(deduplicate_data_type_names);
+        }
+        if let Some(client) = extract_pool!(&connections, &pool_key, Agent) {
+            drop(connections);
+            let mut client = client.lock().await;
+            return client
+                .list_data_types::<Vec<String>>(database, agent_metadata_timeout(db_config.as_ref()))
+                .await
+                .map(deduplicate_data_type_names);
+        }
+        Ok(Vec::new())
+    })
+    .await
+}
+
+fn deduplicate_data_type_names(names: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::new();
+    for name in names {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let key = trimmed.to_ascii_lowercase();
+        if seen.insert(key) {
+            result.push(trimmed.to_string());
+        }
+    }
+    result
+}
+
 async fn list_schemas_once(
     state: &AppState,
     connection_id: &str,

@@ -115,6 +115,10 @@ public final class JsonRpcServer {
             switchCatalog(params);
             return agent.listObjects(params.get("schema").getAsString());
         }
+        if (AgentProtocol.METHOD_LIST_DATA_TYPES.equals(method)) {
+            switchCatalog(params);
+            return agent.listDataTypes();
+        }
         if (AgentProtocol.METHOD_COMPLETION_ASSISTANT_SEARCH_V1.equals(method)) {
             switchCatalog(params);
             return agent.completionAssistantSearch(gson.fromJson(params, CompletionAssistantRequest.class));

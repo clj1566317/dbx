@@ -605,6 +605,28 @@ final class DbxJdbcPluginTest {
     }
 
     @Test
+    void listDataTypesUsesJdbcTypeInfo() throws Exception {
+        JsonNode response = request("listDataTypes", """
+            { "connection": %s }
+            """.formatted(CONNECTION));
+
+        assertFalse(response.has("error"), response.toString());
+        boolean foundInteger = false;
+        boolean foundVarchar = false;
+        for (JsonNode type : response.path("result")) {
+            String name = type.asText();
+            if ("INTEGER".equalsIgnoreCase(name)) {
+                foundInteger = true;
+            }
+            if ("VARCHAR".equalsIgnoreCase(name) || "CHARACTER VARYING".equalsIgnoreCase(name)) {
+                foundVarchar = true;
+            }
+        }
+        assertEquals(true, foundInteger);
+        assertEquals(true, foundVarchar);
+    }
+
+    @Test
     void listObjectsAcceptsCamelCaseMethodAndFallsBackWhenCatalogFiltersEverything() throws Exception {
         createPeopleTable();
 

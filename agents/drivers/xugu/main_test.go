@@ -60,6 +60,30 @@ func TestCloseMissingQuerySessionReturnsFalse(t *testing.T) {
 	}
 }
 
+func TestListDataTypesReturnsXuguTypes(t *testing.T) {
+	s := newServer()
+	resp, shutdown := s.handleLine(`{"jsonrpc":"2.0","id":9,"method":"list_data_types","params":{"database":"demo"}}`)
+	if shutdown {
+		t.Fatal("list_data_types should not shut down the server")
+	}
+	if resp.Error != nil {
+		t.Fatalf("unexpected error: %v", resp.Error)
+	}
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result []string
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"INTEGER", "VARCHAR", "NUMERIC", "INT"} {
+		if !contains(result, want) {
+			t.Fatalf("expected data type %q in %v", want, result)
+		}
+	}
+}
+
 func TestEmptyResultSlicesMarshalAsArrays(t *testing.T) {
 	data, err := json.Marshal(queryResult{})
 	if err != nil {

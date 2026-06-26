@@ -56,6 +56,7 @@ const historyStore = useHistoryStore();
 const settingsStore = useSettingsStore();
 const { toast } = useToast();
 const rootRef = ref<HTMLElement>();
+const dynamicDataTypeOptionsCache = new Map<string, string[]>();
 
 const sqlHighlighter = ref<SqlHighlighter>();
 onMounted(async () => {
@@ -454,7 +455,8 @@ const structureCapabilities = computed(() => getTableStructureCapabilities(datab
 const tableMetadataCapabilities = computed(() => getTableMetadataCapabilities(databaseType.value));
 const structureDialect = computed(() => structureCapabilities.value.dialect);
 const isTableCommentDisabled = computed(() => !structureCapabilities.value.comment);
-const dataTypeOptions = computed(() => getDataTypeOptions(databaseType.value));
+const dynamicDataTypeOptions = ref<string[]>([]);
+const dataTypeOptions = computed(() => mergeDataTypeOptions(dynamicDataTypeOptions.value, getDataTypeOptions(databaseType.value)));
 const columnEditorControls = computed(() => getColumnEditorControls(databaseType.value));
 
 const indexTypesByDb: Record<string, string[]> = {
@@ -587,6 +589,7 @@ function isManticoreJsonColumn(column: EditableStructureColumn): boolean {
 
 let sqlPreviewRequestId = 0;
 let structureLoadRequestId = 0;
+let dataTypeOptionsRequestId = 0;
 let sqlPreviewDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 let deferredSqlPreviewRefresh = false;
 let keydownListenerRegistered = false;
@@ -610,6 +613,57 @@ function clearSqlPreviewState() {
   sqlPreviewLoading.value = false;
   pendingStatements.value = [];
   warnings.value = [];
+}
+
+function dataTypeOptionsCacheKey(connectionId: string, database: string) {
+  return `${connectionId}\u0000${database}`;
+}
+
+function mergeDataTypeOptions(primary: readonly string[], fallback: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const option of [...primary, ...fallback]) {
+    const trimmed = option.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+async function loadDynamicDataTypeOptions() {
+  const requestId = ++dataTypeOptionsRequestId;
+  const connectionId = props.connectionId;
+  const database = props.database;
+  if (!connectionId || !database) {
+    dynamicDataTypeOptions.value = [];
+    return;
+  }
+  const cacheKey = dataTypeOptionsCacheKey(connectionId, database);
+  const cached = dynamicDataTypeOptionsCache.get(cacheKey);
+  if (cached) {
+    dynamicDataTypeOptions.value = cached;
+    return;
+  }
+  dynamicDataTypeOptions.value = [];
+  try {
+    await store.ensureConnected(connectionId);
+    const options = await api.listDataTypes(connectionId, database);
+    if (requestId !== dataTypeOptionsRequestId) return;
+    const normalized = mergeDataTypeOptions(options, []);
+    if (normalized.length > 0) {
+      dynamicDataTypeOptionsCache.set(cacheKey, normalized);
+      dynamicDataTypeOptions.value = normalized;
+    } else {
+      dynamicDataTypeOptions.value = [];
+    }
+  } catch {
+    if (requestId === dataTypeOptionsRequestId) {
+      dynamicDataTypeOptions.value = [];
+    }
+  }
 }
 
 function scheduleSqlPreviewRefresh() {
@@ -1222,11 +1276,13 @@ function unregisterStructureEditorShortcuts() {
 onMounted(() => {
   resetState();
   registerStructureEditorShortcuts();
+  void loadDynamicDataTypeOptions();
   void loadStructure();
 });
 
 onActivated(() => {
   registerStructureEditorShortcuts();
+  void loadDynamicDataTypeOptions();
   if (!isCreateMode.value) void loadStructure(true);
 });
 onDeactivated(unregisterStructureEditorShortcuts);
@@ -1253,6 +1309,10 @@ watch(tableMetadataCapabilities, (capabilities) => {
     (activeTab.value === "triggers" && capabilities.triggers) ||
     (activeTab.value === "ddl" && capabilities.ddl && !isCreateMode.value);
   if (!supported) activeTab.value = firstStructureMetadataTab(capabilities);
+});
+
+watch([() => props.connectionId, () => props.database, databaseType], () => {
+  void loadDynamicDataTypeOptions();
 });
 
 watch(

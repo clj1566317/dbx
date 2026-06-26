@@ -120,6 +120,7 @@ pub enum AgentMethod {
     ListSchemas,
     ListTables,
     ListObjects,
+    ListDataTypes,
     CompletionAssistantSearchV1,
     GetObjectSource,
     GetColumns,
@@ -141,7 +142,7 @@ pub enum AgentMethod {
 }
 
 impl AgentMethod {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 27] = [
         Self::Handshake,
         Self::Connect,
         Self::TestConnection,
@@ -150,6 +151,7 @@ impl AgentMethod {
         Self::ListSchemas,
         Self::ListTables,
         Self::ListObjects,
+        Self::ListDataTypes,
         Self::CompletionAssistantSearchV1,
         Self::GetObjectSource,
         Self::GetTableDdl,
@@ -180,6 +182,7 @@ impl AgentMethod {
             Self::ListSchemas => "list_schemas",
             Self::ListTables => "list_tables",
             Self::ListObjects => "list_objects",
+            Self::ListDataTypes => "list_data_types",
             Self::CompletionAssistantSearchV1 => "completion_assistant_search_v1",
             Self::GetObjectSource => "get_object_source",
             Self::GetTableDdl => "get_table_ddl",
@@ -614,6 +617,19 @@ impl AgentDriverClient {
     ) -> Result<T, String> {
         self.call_method_with_timeout(AgentMethod::ListObjects, agent_schema_params(database, schema), timeout_duration)
             .await
+    }
+
+    pub async fn list_data_types<T: DeserializeOwned + Send + 'static>(
+        &mut self,
+        database: &str,
+        timeout_duration: Option<Duration>,
+    ) -> Result<T, String> {
+        self.call_method_with_timeout(
+            AgentMethod::ListDataTypes,
+            serde_json::json!({ "database": database }),
+            timeout_duration,
+        )
+        .await
     }
 
     pub async fn completion_assistant_search<T: DeserializeOwned + Send + 'static>(
@@ -1338,6 +1354,7 @@ mod tests {
         assert_eq!(AgentMethod::ListSchemas.as_str(), "list_schemas");
         assert_eq!(AgentMethod::ListTables.as_str(), "list_tables");
         assert_eq!(AgentMethod::ListObjects.as_str(), "list_objects");
+        assert_eq!(AgentMethod::ListDataTypes.as_str(), "list_data_types");
         assert_eq!(AgentMethod::CompletionAssistantSearchV1.as_str(), "completion_assistant_search_v1");
         assert_eq!(AgentMethod::GetObjectSource.as_str(), "get_object_source");
         assert_eq!(AgentMethod::GetColumns.as_str(), "get_columns");

@@ -262,6 +262,7 @@ public final class DbxJdbcPlugin {
                 optionalText(params, "database"),
                 optionalText(params, "schema")
             );
+            case "listDataTypes", "list_data_types" -> listDataTypes(connection, optionalText(params, "database"));
             case "getObjectSource", "get_object_source" -> getObjectSource(
                 connection,
                 optionalText(params, "database"),
@@ -1160,6 +1161,33 @@ public final class DbxJdbcPlugin {
         } catch (SQLException ignored) {
         }
 
+        return result;
+    }
+
+    private static JsonNode listDataTypes(JsonNode connection, String database) throws SQLException {
+        Connection conn = openConnection(connection);
+        JdbcDriverQuirks quirks = driverQuirks(connection);
+        String catalog = metadataCatalog(database, quirks);
+        if (catalog != null) {
+            try {
+                conn.setCatalog(catalog);
+            } catch (SQLFeatureNotSupportedException | AbstractMethodError | UnsupportedOperationException ignored) {
+            }
+        }
+        ArrayNode result = MAPPER.createArrayNode();
+        Set<String> seen = new HashSet<>();
+        try (ResultSet rs = conn.getMetaData().getTypeInfo()) {
+            while (rs.next()) {
+                String name = rs.getString("TYPE_NAME");
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                String trimmed = name.trim();
+                if (seen.add(trimmed.toLowerCase(Locale.ROOT))) {
+                    result.add(trimmed);
+                }
+            }
+        }
         return result;
     }
 

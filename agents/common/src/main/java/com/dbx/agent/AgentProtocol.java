@@ -15,6 +15,7 @@ public final class AgentProtocol {
     public static final String METHOD_LIST_SCHEMAS = "list_schemas";
     public static final String METHOD_LIST_TABLES = "list_tables";
     public static final String METHOD_LIST_OBJECTS = "list_objects";
+    public static final String METHOD_LIST_DATA_TYPES = "list_data_types";
     public static final String METHOD_COMPLETION_ASSISTANT_SEARCH_V1 = "completion_assistant_search_v1";
     public static final String METHOD_GET_OBJECT_SOURCE = "get_object_source";
     public static final String METHOD_GET_TABLE_DDL = "get_table_ddl";
@@ -85,6 +86,7 @@ public final class AgentProtocol {
         METHOD_LIST_SCHEMAS,
         METHOD_LIST_TABLES,
         METHOD_LIST_OBJECTS,
+        METHOD_LIST_DATA_TYPES,
         METHOD_COMPLETION_ASSISTANT_SEARCH_V1,
         METHOD_GET_OBJECT_SOURCE,
         METHOD_GET_TABLE_DDL,

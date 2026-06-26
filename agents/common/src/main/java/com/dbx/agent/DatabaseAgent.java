@@ -35,6 +35,10 @@ public interface DatabaseAgent {
         return result;
     }
 
+    default List<String> listDataTypes() {
+        return Collections.emptyList();
+    }
+
     default CompletionAssistantResponse completionAssistantSearch(CompletionAssistantRequest request) {
         throw new UnsupportedOperationException("Completion assistant search is not supported by this agent");
     }

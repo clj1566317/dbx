@@ -54,6 +54,36 @@ WHERE UPPER(s.SCHEMA_NAME) = UPPER(?)
   AND UPPER(t.TABLE_NAME) = UPPER(?)
 ORDER BY i.INDEX_NAME`
 
+var xuguDataTypes = []string{
+	"BOOLEAN",
+	"INTEGER",
+	"SMALLINT",
+	"BIGINT",
+	"FLOAT",
+	"NUMERIC",
+	"CHAR",
+	"VARCHAR",
+	"CLOB",
+	"DATE",
+	"TIME",
+	"TIMESTAMP",
+	"BINARY",
+	"VARBINARY",
+	"BLOB",
+	"XML",
+	"BOOL",
+	"INT",
+	"SHORT",
+	"LONGINT",
+	"LONG",
+	"REAL",
+	"DECIMAL",
+	"TEXT",
+	"NCHAR",
+	"NVARCHAR",
+	"NVARCHAR2",
+}
+
 type request struct {
 	ID     json.RawMessage            `json:"id"`
 	Method string                     `json:"method"`
@@ -320,6 +350,8 @@ func (s *server) dispatch(method string, params map[string]json.RawMessage) (any
 		schema := stringParam(params, "schema")
 		result, err := s.listObjects(schema)
 		return result, false, err
+	case "list_data_types":
+		return xuguDataTypes, false, nil
 	case "get_columns":
 		if err := s.useDatabase(stringParam(params, "database")); err != nil {
 			return nil, false, err
