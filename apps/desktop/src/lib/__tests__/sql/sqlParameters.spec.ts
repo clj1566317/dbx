@@ -147,6 +147,23 @@ describe("extractSqlParameters", () => {
     expect(extractSqlParameters(sql)).toEqual([]);
   });
 
+  it("ignores MySQL dynamic SQL variables used by prepared statements", () => {
+    const sql = `
+      SET @sql = IF(
+        (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'oem_user_group'
+           AND COLUMN_NAME = 'group') = 0,
+        'ALTER TABLE \`oem_user_group\` ADD COLUMN \`group\` varchar(64) DEFAULT NULL COMMENT ''users.group'' AFTER \`oem_id\`',
+        'SELECT 1'
+      );
+      PREPARE stmt FROM @sql;
+      EXECUTE stmt;
+      DEALLOCATE PREPARE stmt;
+    `;
+    expect(extractSqlParameters(sql)).toEqual([]);
+  });
+
   it("stops SQL Server declaration scanning when a new statement starts without a semicolon", () => {
     const sql = `
       declare @id int = 1
@@ -220,6 +237,21 @@ describe("substituteSqlParameters", () => {
 
   it("preserves native variable updates instead of rewriting SQL text", () => {
     const sql = "set @n = 1; set @n = @n + 1; select @n;";
+    expect(substituteSqlParameters(sql, {})).toBe(sql);
+  });
+
+  it("preserves MySQL dynamic SQL variables used by prepared statements", () => {
+    const sql = `SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+   WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME = 'oem_user_group'
+     AND COLUMN_NAME = 'group') = 0,
+  'ALTER TABLE \`oem_user_group\` ADD COLUMN \`group\` varchar(64) DEFAULT NULL COMMENT ''users.group'' AFTER \`oem_id\`',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;`;
     expect(substituteSqlParameters(sql, {})).toBe(sql);
   });
 
