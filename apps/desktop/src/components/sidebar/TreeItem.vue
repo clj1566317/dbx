@@ -4005,6 +4005,8 @@ const connectionColor = computed(() => {
 const isActiveConnectionScope = computed(() => !!props.node.connectionId && connectionStore.activeConnectionId === props.node.connectionId);
 const isSelected = computed(() => connectionStore.selectedTreeNodeId === props.node.id);
 const isMultiSelected = computed(() => connectionStore.selectedTreeNodeIds.includes(props.node.id));
+const isTreeRowSelected = computed(() => isSelected.value || isMultiSelected.value);
+const usesSelectionSetHighlight = computed(() => connectionStore.connectionMultiSelectActive || connectionStore.selectedTreeNodeIds.length > 1);
 const rowStyle = computed(() => {
   const color = connectionColor.value;
   const backgroundColor = hexToRgba(color, isActiveConnectionScope.value ? 0.14 : 0.08);
@@ -5068,9 +5070,9 @@ function treeItemMenuItems(): ContextMenuItem[] {
               'tree-item-connection-tint': connectionColor,
               'hover:bg-accent': node.type !== 'connection',
               'hover:bg-secondary/60': node.type === 'connection',
-              rounded: !isSelected && !isMultiSelected,
-              'tree-item-active rounded-none': connectionColor && (isSelected || isMultiSelected),
-              'tree-item-active rounded-md': !connectionColor && (isSelected || isMultiSelected),
+              rounded: !isTreeRowSelected,
+              'tree-item-active': isTreeRowSelected,
+              'tree-item-active--selection-set': usesSelectionSetHighlight && isTreeRowSelected,
               'tree-item-highlight': highlighted,
             },
           ]"
@@ -5762,6 +5764,10 @@ function treeItemMenuItems(): ContextMenuItem[] {
   background-color: var(--tree-connection-active-focus-bg, var(--tree-connection-active-bg));
 }
 
+.tree-item-connection-tint.tree-item-active--selection-set:focus::before {
+  background-color: var(--tree-connection-active-bg, var(--tree-connection-row-bg));
+}
+
 .tree-table-search-control {
   position: relative;
   isolation: isolate;
@@ -5796,6 +5802,16 @@ function treeItemMenuItems(): ContextMenuItem[] {
 }
 :root.dark .tree-item-active:focus {
   background-color: var(--tree-connection-active-focus-bg, rgb(33 60 89)) !important;
+}
+
+/* Multi-selection treats every selected row as equal; keep focus neutral. */
+.tree-item-active--selection-set:focus {
+  background-color: var(--tree-connection-active-bg, rgb(235 235 235)) !important;
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.14);
+}
+:root.dark .tree-item-active--selection-set:focus {
+  background-color: var(--tree-connection-active-bg, rgb(36 36 36)) !important;
+  box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.18);
 }
 
 /* Locate highlight: instant amber, then fade on removal */
