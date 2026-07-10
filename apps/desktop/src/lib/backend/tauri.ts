@@ -201,6 +201,33 @@ export interface WebDavSyncSecretsStatus {
   hasSavedPassphrase: boolean;
 }
 
+export type SnippetProvider = "github" | "gitee";
+
+export interface SnippetSyncConfig {
+  provider: SnippetProvider;
+  token?: string;
+  snippetId?: string;
+}
+
+export interface SnippetSyncSummary {
+  provider: SnippetProvider;
+  snippetId: string;
+  bytes: number;
+  exportedAt?: string;
+  appVersion?: string;
+}
+
+export interface SnippetDownloadResult {
+  summary: SnippetSyncSummary;
+  editorSettings?: unknown;
+  desktopSettings: DesktopSettings;
+  applySummary: WebDavDownloadResult["applySummary"];
+}
+
+export interface SnippetTokenStatus {
+  hasSavedToken: boolean;
+}
+
 export interface AppSupportInfo {
   appVersion: string;
   runtime: "desktop" | "web";
@@ -494,6 +521,30 @@ export async function webdavSyncUpload(config: WebDavConfig, editorSettings?: un
 
 export async function webdavSyncDownload(config: WebDavConfig, secretsPassphrase?: string): Promise<WebDavDownloadResult> {
   return invoke("webdav_sync_download", { config, secretsPassphrase });
+}
+
+export async function snippetSyncTest(config: SnippetSyncConfig): Promise<void> {
+  return invoke("snippet_sync_test", { config });
+}
+
+export async function snippetTokenStatus(config: SnippetSyncConfig): Promise<SnippetTokenStatus> {
+  return invoke("snippet_token_status", { config });
+}
+
+export async function saveSnippetSavedToken(config: SnippetSyncConfig, token: string): Promise<void> {
+  return invoke("save_snippet_saved_token", { config, token });
+}
+
+export async function forgetSnippetSavedToken(config: SnippetSyncConfig): Promise<void> {
+  return invoke("forget_snippet_saved_token", { config });
+}
+
+export async function snippetSyncUpload(config: SnippetSyncConfig, editorSettings?: unknown, secretsPassphrase?: string): Promise<SnippetSyncSummary> {
+  return invoke("snippet_sync_upload", { config, editorSettings, secretsPassphrase });
+}
+
+export async function snippetSyncDownload(config: SnippetSyncConfig, secretsPassphrase?: string): Promise<SnippetDownloadResult> {
+  return invoke("snippet_sync_download", { config, secretsPassphrase });
 }
 
 export async function loadPinnedTreeNodeIds(): Promise<string[]> {
