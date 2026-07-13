@@ -317,7 +317,7 @@ pub fn default_connect_timeout_secs() -> u64 {
 }
 
 pub fn default_query_timeout_secs() -> u64 {
-    30
+    60
 }
 
 pub fn default_idle_timeout_secs() -> u64 {
@@ -1879,6 +1879,11 @@ mod tests {
         DatabaseType, ProxyTunnelConfig, ProxyType, TransportLayerConfig,
     };
     use std::str::FromStr;
+
+    #[test]
+    fn default_query_timeout_is_sixty_seconds() {
+        assert_eq!(default_query_timeout_secs(), 60);
+    }
 
     fn mysql_config(username: &str, password: &str, database: Option<&str>) -> ConnectionConfig {
         ConnectionConfig {
