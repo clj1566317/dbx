@@ -2,6 +2,25 @@ import type { TreeNode } from "@/types/database";
 
 export type PinnedTreeNodeUpdateScope = "missing" | "root" | "siblings";
 
+const NATURAL_TREE_NODE_ORDER = Symbol("naturalTreeNodeOrder");
+type OrderedTreeNode = TreeNode & { [NATURAL_TREE_NODE_ORDER]?: number };
+
+function naturalTreeNodeOrder(node: TreeNode): number | undefined {
+  return (node as OrderedTreeNode)[NATURAL_TREE_NODE_ORDER];
+}
+
+function setNaturalTreeNodeOrder(node: TreeNode, order: number): void {
+  // An enumerable symbol survives Vue proxies and object spreads while staying
+  // out of persisted JSON, so rebuilt nodes retain their layout position.
+  (node as OrderedTreeNode)[NATURAL_TREE_NODE_ORDER] = order;
+}
+
+export function inheritNaturalTreeNodeOrder(source: TreeNode, target: TreeNode): TreeNode {
+  const order = naturalTreeNodeOrder(source);
+  if (order !== undefined) setNaturalTreeNodeOrder(target, order);
+  return target;
+}
+
 export function treeNodePinKey(node: TreeNode): string {
   if (!node.connectionId) return node.id;
   const identity = [node.database || "", node.schema || "", node.catalog || "", node.type, node.objectName || node.tableName || node.label, node.signature || "", node.id];
@@ -41,6 +60,36 @@ export function orderPinnedFirst<T>(items: T[], isPinned: (item: T) => boolean):
   return [...pinned, ...unpinned];
 }
 
+function rememberNaturalTreeNodeOrder(nodes: readonly TreeNode[]): void {
+  let nextOrder = 0;
+  for (const node of nodes) {
+    const order = naturalTreeNodeOrder(node);
+    if (order === undefined) continue;
+    nextOrder = Math.max(nextOrder, order + 1);
+  }
+
+  for (const node of nodes) {
+    if (naturalTreeNodeOrder(node) !== undefined) continue;
+    // Preserve the backend/layout order separately from the pinned presentation
+    // order so an unpinned node can return to its original sibling position.
+    setNaturalTreeNodeOrder(node, nextOrder++);
+  }
+}
+
+export function orderPinnedTreeNodes(nodes: TreeNode[]): TreeNode[] {
+  rememberNaturalTreeNodeOrder(nodes);
+  const pinned: TreeNode[] = [];
+  const unpinned: TreeNode[] = [];
+
+  for (const node of nodes) {
+    if (node.pinned) pinned.push(node);
+    else unpinned.push(node);
+  }
+
+  unpinned.sort((left, right) => naturalTreeNodeOrder(left)! - naturalTreeNodeOrder(right)!);
+  return [...pinned, ...unpinned];
+}
+
 function findTreeNodeLocation(nodes: TreeNode[], target: TreeNode, parent: TreeNode | null = null): { node: TreeNode; parent: TreeNode | null } | null {
   const targetKey = treeNodePinKey(target);
   for (const node of nodes) {
@@ -59,7 +108,7 @@ export function updatePinnedTreeNodeInPlace(nodes: TreeNode[], target: TreeNode,
 
   location.node.pinned = pinned;
   const siblings = location.parent?.children ?? nodes;
-  const ordered = orderPinnedFirst(siblings, (node) => !!node.pinned);
+  const ordered = orderPinnedTreeNodes(siblings);
 
   if (location.parent) {
     location.parent.children = ordered;
@@ -78,16 +127,15 @@ function clonePinnedTreeNode(node: TreeNode, pinnedIds: Set<string>, clones: Wea
     pinned: pinnedIds.has(treeNodePinKey(node)) || pinnedIds.has(node.id),
   };
   clones.set(node, clone);
+  inheritNaturalTreeNodeOrder(node, clone);
   if (node.children) clone.children = applyPinnedTreeNodeStateInternal(node.children, pinnedIds, clones);
   if (node.hiddenChildren) clone.hiddenChildren = applyPinnedTreeNodeStateInternal(node.hiddenChildren, pinnedIds, clones);
   return clone;
 }
 
 function applyPinnedTreeNodeStateInternal(nodes: TreeNode[], pinnedIds: Set<string>, clones: WeakMap<TreeNode, TreeNode>): TreeNode[] {
-  return orderPinnedFirst(
-    nodes.map((node) => clonePinnedTreeNode(node, pinnedIds, clones)),
-    (node) => !!node.pinned,
-  );
+  rememberNaturalTreeNodeOrder(nodes);
+  return orderPinnedTreeNodes(nodes.map((node) => clonePinnedTreeNode(node, pinnedIds, clones)));
 }
 
 export function applyPinnedTreeNodeState(nodes: TreeNode[], pinnedIds: Set<string>): TreeNode[] {
@@ -101,14 +149,14 @@ function syncPinnedTreeNodeStateInPlaceInternal(nodes: TreeNode[], pinnedIds: Se
     node.pinned = pinnedIds.has(treeNodePinKey(node)) || pinnedIds.has(node.id);
     if (node.children) {
       syncPinnedTreeNodeStateInPlaceInternal(node.children, pinnedIds, visited);
-      node.children = orderPinnedFirst(node.children, (child) => !!child.pinned);
+      node.children = orderPinnedTreeNodes(node.children);
     }
     if (node.hiddenChildren) {
       syncPinnedTreeNodeStateInPlaceInternal(node.hiddenChildren, pinnedIds, visited);
-      node.hiddenChildren = orderPinnedFirst(node.hiddenChildren, (child) => !!child.pinned);
+      node.hiddenChildren = orderPinnedTreeNodes(node.hiddenChildren);
     }
   }
-  nodes.splice(0, nodes.length, ...orderPinnedFirst(nodes, (node) => !!node.pinned));
+  nodes.splice(0, nodes.length, ...orderPinnedTreeNodes(nodes));
 }
 
 export function syncPinnedTreeNodeStateInPlace(nodes: TreeNode[], pinnedIds: Set<string>): void {

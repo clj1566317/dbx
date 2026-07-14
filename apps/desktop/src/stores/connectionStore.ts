@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { uuid } from "@/lib/common/utils";
 import { ref, computed, watch, markRaw } from "vue";
 import type { ColumnInfo, CompletionAssistantCandidate, CompletionAssistantObjectKind, CompletionAssistantRequest, ConnectionConfig, CatalogInfo, ForeignKeyInfo, ObjectInfo, SchemaInfo, SidebarLayout, TableInfo, TreeNode, TunnelProfile, VectorCollectionMeta } from "@/types/database";
-import { applyPinnedTreeNodeState, migrateLegacyPinnedTreeNodeIds, syncPinnedTreeNodeStateInPlace, treeNodePinKey } from "@/lib/app/pinnedItems";
+import { applyPinnedTreeNodeState, inheritNaturalTreeNodeOrder, migrateLegacyPinnedTreeNodeIds, syncPinnedTreeNodeStateInPlace, treeNodePinKey } from "@/lib/app/pinnedItems";
 import {
   reconcileLayout,
   buildTreeNodesFromLayout,
@@ -4767,18 +4767,18 @@ export const useConnectionStore = defineStore("connection", () => {
       nodes.map((node) => {
         const existing = existingNodesMap.get(node.id);
         if (node.type === "connection-group") {
-          return { ...node, children: mergeState(node.children || []) };
+          return inheritNaturalTreeNodeOrder(node, { ...node, children: mergeState(node.children || []) });
         }
         if (existing && node.type === "connection") {
-          return {
+          return inheritNaturalTreeNodeOrder(node, {
             ...existing,
             label: node.label,
             pinned: node.pinned,
             children: withSavedSqlRoot(node.connectionId!, existing.children || [], existing),
-          };
+          });
         }
         if (node.type === "connection" && node.connectionId) {
-          return { ...node, children: withSavedSqlRoot(node.connectionId, node.children || []) };
+          return inheritNaturalTreeNodeOrder(node, { ...node, children: withSavedSqlRoot(node.connectionId, node.children || []) });
         }
         return node;
       });

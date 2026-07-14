@@ -1,5 +1,6 @@
 import type { ConnectionConfig, ConnectionGroup, SidebarLayout, SidebarOrderEntry, TreeNode } from "@/types/database";
 import { uuid } from "@/lib/common/utils";
+import { orderPinnedTreeNodes } from "@/lib/app/pinnedItems";
 
 export function emptyLayout(): SidebarLayout {
   return { groups: [], order: [] };
@@ -89,16 +90,6 @@ function makeConnectionNode(config: ConnectionConfig, pinned: boolean): TreeNode
   };
 }
 
-function orderPinnedFirst(nodes: TreeNode[]): TreeNode[] {
-  const pinned: TreeNode[] = [];
-  const unpinned: TreeNode[] = [];
-  for (const node of nodes) {
-    if (node.pinned) pinned.push(node);
-    else unpinned.push(node);
-  }
-  return [...pinned, ...unpinned];
-}
-
 export function buildTreeNodesFromLayout(layout: SidebarLayout, connections: ConnectionConfig[], pinnedIds: Set<string>): TreeNode[] {
   const configMap = new Map(connections.map((connection) => [connection.id, connection]));
   const groupMap = new Map(layout.groups.map((group) => [group.id, group]));
@@ -120,13 +111,13 @@ export function buildTreeNodesFromLayout(layout: SidebarLayout, connections: Con
         type: "connection-group",
         pinned: pinnedIds.has(group.id),
         isExpanded: !group.collapsed,
-        children: orderPinnedFirst(build(entryChildren(entry))),
+        children: orderPinnedTreeNodes(build(entryChildren(entry))),
       });
     }
     return nodes;
   };
 
-  return orderPinnedFirst(build(layout.order));
+  return orderPinnedTreeNodes(build(layout.order));
 }
 
 export function findConnectionLocation(layout: SidebarLayout, connectionId: string): { entries: SidebarOrderEntry[]; entryIndex: number; groupId?: string } | null {
