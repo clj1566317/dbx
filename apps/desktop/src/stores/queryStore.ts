@@ -323,6 +323,8 @@ function expandStarProjectionColumnsForSource(analysis: EditableQueryInfo, sourc
 }
 
 let saveTabsQueue = Promise.resolve();
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let persistGeneration = 0;
 
 function saveTabs(tabs: QueryTab[], activeTabId: string | null): Promise<void> {
   const payload = { tabs: serializeOpenTabs(tabs), activeTabId };
@@ -942,14 +944,15 @@ export const useQueryStore = defineStore("query", () => {
     })),
   );
 
-  let _persistTimer: ReturnType<typeof setTimeout> | null = null;
+  const storePersistGeneration = ++persistGeneration;
   watch(
     [_persistSnapshot, activeTabId],
     () => {
-      if (_persistTimer) clearTimeout(_persistTimer);
-      _persistTimer = setTimeout(() => {
+      if (storePersistGeneration !== persistGeneration) return;
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
         void saveTabs(tabs.value, activeTabId.value).catch(() => {});
-        _persistTimer = null;
+        persistTimer = null;
       }, 300);
     },
     { flush: "post" },
@@ -960,9 +963,10 @@ export const useQueryStore = defineStore("query", () => {
   // Lets callers (e.g. tests that reload the store) read back persisted state
   // deterministically instead of racing the debounce timer.
   function flushPendingPersist(): Promise<void> {
-    if (_persistTimer) {
-      clearTimeout(_persistTimer);
-      _persistTimer = null;
+    if (storePersistGeneration !== persistGeneration) return Promise.resolve();
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
     }
     return saveTabs(tabs.value, activeTabId.value);
   }
