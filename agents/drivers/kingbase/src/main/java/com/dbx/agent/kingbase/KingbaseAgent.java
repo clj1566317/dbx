@@ -450,12 +450,19 @@ public final class KingbaseAgent extends PostgresLikeAgent {
     private List<ColumnInfo> getInformationSchemaColumns(String schema, String table, Set<String> primaryKeys) {
         return unchecked(() -> {
             List<ColumnInfo> result = new ArrayList<>();
-            String sql = "SELECT column_name, data_type, is_nullable, column_default, " +
-                "numeric_precision, numeric_scale, character_maximum_length " +
-                "FROM information_schema.columns " +
-                "WHERE table_schema = " + sqlString(effectiveSchema(schema)) +
-                " AND table_name = " + sqlString(table) + " " +
-                "ORDER BY ordinal_position";
+            String sql = "SELECT ic.column_name, ic.data_type, ic.is_nullable, ic.column_default, " +
+                "ic.numeric_precision, ic.numeric_scale, ic.character_maximum_length, " +
+                "d.description AS column_comment " +
+                "FROM information_schema.columns ic " +
+                // information_schema preserves MySQL-compatible type metadata but does not expose comments.
+                "LEFT JOIN sys_catalog.sys_namespace n ON n.nspname = ic.table_schema " +
+                "LEFT JOIN sys_catalog.sys_class c ON c.relnamespace = n.oid AND c.relname = ic.table_name " +
+                "LEFT JOIN sys_catalog.sys_attribute a ON a.attrelid = c.oid AND a.attname = ic.column_name " +
+                "AND a.attnum > 0 AND NOT a.attisdropped " +
+                "LEFT JOIN sys_catalog.sys_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum " +
+                "WHERE ic.table_schema = " + sqlString(effectiveSchema(schema)) +
+                " AND ic.table_name = " + sqlString(table) + " " +
+                "ORDER BY ic.ordinal_position";
             try (Statement stmt = requireConnected().createStatement()) {
                 try (ResultSet rs = stmt.executeQuery(sql)) {
                     while (rs.next()) {
@@ -467,7 +474,7 @@ public final class KingbaseAgent extends PostgresLikeAgent {
                             rs.getString("column_default"),
                             primaryKeys.contains(columnName),
                             null,
-                            null,
+                            rs.getString("column_comment"),
                             intObject(rs, "numeric_precision"),
                             intObject(rs, "numeric_scale"),
                             intObject(rs, "character_maximum_length")

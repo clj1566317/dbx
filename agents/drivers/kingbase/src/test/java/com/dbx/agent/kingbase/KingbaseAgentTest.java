@@ -426,16 +426,19 @@ class KingbaseAgentTest extends JdbcFakeExecutionBehaviorTest {
                     "column_default",
                     "numeric_precision",
                     "numeric_scale",
-                    "character_maximum_length"
+                    "character_maximum_length",
+                    "column_comment"
                 },
-                new Object[][]{{"id", "int", "NO", null, 32, 0, null}}
+                new Object[][]{{"id", "int", "NO", null, 32, 0, null, "identifier"}}
             )
         ));
 
         List<ColumnInfo> columns = agent.getColumns("PUBLIC", "orders");
 
         Assertions.assertEquals("int", columns.get(0).getData_type());
+        Assertions.assertEquals("identifier", columns.get(0).getComment());
         Assertions.assertTrue(sql.get(1).contains("FROM information_schema.columns"), sql.get(1));
+        Assertions.assertTrue(sql.get(1).contains("LEFT JOIN sys_catalog.sys_description"), sql.get(1));
     }
 
     @Test
